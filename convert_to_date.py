@@ -9,27 +9,21 @@ from collections import OrderedDict
 
 all_intervals_days = []
 
-# def short_to_long(short_to_date):
-#     date_ptrn =  "\d\d-\d\d-\d\d\d\d"
-#     date = "to_date(\'" + re.search(date_ptrn, short_to_date.lower()).group(0) + " 00:00:00\', \'dd-mm-yyyy hh24:mi:ss\')"
-#     # date = "to_date(" + str(re.findall(date_ptrn, line.lower())).strip('[""]')
-#     return date
-
-
 # Преобразуем строку формата 2019-09-30 00:00:00 или 2019-09-30 к datetime
 def string_to_datetime(only_date):
     date_ptrn_long = "%d-%m-%Y %H:%M:%S"
     date_ptrn_short = "%d-%m-%Y"
-    
+
+    # Конвертируем в datetime. Формат функции to_date определяем по длине
     if len(only_date) > 11:
-        date_time = datetime.datetime.strptime(only_date, date_ptrn_long) # Получаем дату, как datetime
-#         date_time = date_time.strftime(date_ptrn_long)
+        date_time = datetime.datetime.strptime(only_date, date_ptrn_long)
     else:
         date_time = datetime.datetime.strptime(only_date, date_ptrn_short)
         
     return date_time
 
-# Формирование из строки вида to_date('10-07-2019 15:48:56', 'dd-mm-yyyy hh24:mi:ss') объект date_time
+
+# Получение из строки to_date('10-07-2019 15:48:56', 'dd-mm-yyyy hh24:mi:ss') даты строкой вида '10-07-2019 15:48:56'
 def get_only_date(to_date_str):
     only_date = to_date_str.split('\'')[1]
 #     only_date = re.sub(r"\'\,.*", "", without_to_date_str)
@@ -41,40 +35,32 @@ def get_only_date(to_date_str):
 
 # Формирование строки для SQL-файла вида SYSDATE + INTERVAL...
 def get_sysdate_string(time_delta, sign):
+
     days = time_delta.days
+    # months = days //
+    years = time_delta.days // 365
     all_intervals_days.append(int(days))
     hours = time_delta.seconds // 3600
     minutes = time_delta.seconds % 3600 // 60
     seconds = time_delta.seconds % 3600 % 60
-    #     print('\n[DEBUG] delta = ', time_delta, '; days = ', days, '; hours = ', hours, '; mins = ', minutes, ', secs = ',
-    #         seconds, sep='')                                                    # [DEBUG]
+    # print('\n[DEBUG] delta = ', time_delta, '; year = ', year, '; month = ', month, ; days = ', days, '; hours = ',
+    # hours, '; mins = ', minutes, ', secs = ', seconds, sep='')                                             # [DEBUG]
 
     sysdate_string = "SYSDATE" + timedelta_to_interval(days, "days", sign) \
                      + timedelta_to_interval(hours, "hours", sign) \
-                     + timedelta_to_interval(minutes, "minutes", sign) \
-                     + timedelta_to_interval(seconds, "seconds", sign)
+                     + timedelta_to_interval(minutes, "minutes", sign)# \
+                     # + timedelta_to_interval(seconds, "seconds", sign)
 
-    print("[DEBUG] String for sql file:", sysdate_string)                     # [DEBUG]
+    # print("[DEBUG] String for sql file:", sysdate_string)                     # [DEBUG]
 
     return sysdate_string
-
-# Т.к. Oracle не позволяет использовать большие значения для SYSDATE + INTERVAL,
-# приходится пропорционально уменьшать эти значения
-def reduce_days(dict_to_date):
-    ptrn = "\'(\d*)\' DAY"
-    max_day = 90
-    ratio = max_day / max(all_intervals_days)
-    for key,value in dict_to_date.items():
-        day_value = re.search(ptrn, value)
-        if day_value is not None:
-            reduced_day_value = "'" + str(round(int(day_value[1]) * ratio)) + "' DAY"
-            dict_to_date[key] = re.sub(ptrn, reduced_day_value, value)
 
 
 # Формирование из time_delta строки вида -/+ INTERVAL 'N' DAY/HOUR/MINUTE/SECOND
 def timedelta_to_interval(time, unit, sign):
     delta_str = ""
-    time_units = {"days": "DAY",
+    time_units = {"months": "MONTH",
+                  "days": "DAY",
                   "hours": "HOUR",
                   "minutes": "MINUTE",
                   "seconds": "SECOND"}
@@ -84,6 +70,21 @@ def timedelta_to_interval(time, unit, sign):
         delta_str = " " + sign + " INTERVAL \'" + str(-time) + "\' " + time_units[unit]
 
     return delta_str
+
+
+# Т.к. Oracle не позволяет использовать большие значения для SYSDATE + INTERVAL,
+# приходится пропорционально уменьшать эти значения
+def reduce_days(dict_to_date):
+    ptrn = "\'(\d*)\' DAY"
+    max_day = 90
+    # if all_intervals_days ==
+
+    ratio = max_day / max(all_intervals_days)
+    for key,value in dict_to_date.items():
+        day_value = re.search(ptrn, value)
+        if day_value is not None:
+            reduced_day_value = "'" + str(round(int(day_value[1]) * ratio)) + "' DAY"
+            dict_to_date[key] = re.sub(ptrn, reduced_day_value, value)
 
 
 # Создание файл с преобразованными to_date в SYSDATE +/- INTERVAL
@@ -113,7 +114,7 @@ def print_to_dates(dates):
 def print_to_dates_dict(dict):
     # dict(sorted())
     for id, item in enumerate(dict):
-#         print("[", id, "] ", item, " = ", dict[item].strftime("%d-%m-%Y %H:%M:%S"), sep='')
+        # print("[", id, "] ", item, " = ", dict[item].strftime("%d-%m-%Y %H:%M:%S"), sep='')
         print("[", id, "] ", item, " = ", dict[item], sep='')
 
 def pop_by_index(dict, index):
@@ -136,21 +137,19 @@ def get_value_by_index(dict, index):
 if __name__ == '__main__':
     parser = create_arg_parser()
     namespace = parser.parse_args(sys.argv[1:])
-#     print("namespace", namespace.file, namespace)
     filename = namespace.file
 
     long_ptrn = "to_date\(\'\d\d-\d\d-\d{4} \d\d:\d\d:\d\d\', \'\S{10} \S{10}\'\)"
     short_pattern = "to_date\(\'\d\d-\d\d-\d\d\d\d\', \'dd-mm-yyyy\'\)"
     example_string = "to_date('10-07-2019 15:48:56', 'dd-mm-yyyy hh24:mi:ss')"
 
-    # dict_of_to_dates = {}  # Словарь, в котором лежат все выражения to_date('10-07-2019 15:48:56', 'dd-mm-yyyy hh24:mi:ss')
+    # Словарь, в котором лежат все выражения to_date('10-07-2019 15:48:56', 'dd-mm-yyyy hh24:mi:ss')
     dict_of_to_dates = OrderedDict()
 
     with open(filename, mode="r", encoding="utf-8") as file:
         for line in file:
             short_todate = re.findall(short_pattern, line.lower())
             for date in short_todate:
-#                 dict_of_to_dates.setdefault(short_to_long(date), "")
                 dict_of_to_dates.setdefault((date), "")
 
             filtered_line = re.findall(long_ptrn, line.lower())  # Строка, удовлетворяющая regexp'у
@@ -215,8 +214,8 @@ if __name__ == '__main__':
     print_to_dates_dict(ordered_dict)
     # print_to_dates(list_Dates)
     # sys_date_num = int(input())
-#     sysdate_str = str(get_value_by_index(ordered_dict, int(input())))
-    sysdate_str = str(get_value_by_index(ordered_dict, 3))
+    sysdate_str = str(get_value_by_index(ordered_dict, int(input())))
+    # sysdate_str = str(get_value_by_index(ordered_dict, 3))
     # ###########################
     # print("что то получили из словаря ", sysdate_str)
     date_pattern2 = "%Y-%m-%d %H:%M:%S"
@@ -238,7 +237,7 @@ if __name__ == '__main__':
         ordered_dict[to_date_str] = get_sysdate_string(time_delta, sign)
         print(to_date_str, '->', ordered_dict[to_date_str])
 
-    reduce_days(ordered_dict)
+    # reduce_days(ordered_dict)
 
     source_file = filename
     dest_file = "new_" + filename
